@@ -98,6 +98,22 @@ docker run --rm -v fd-file-service_filedata:/d -v $(pwd):/b alpine \
 备份通道纪律（design D9）：客户业务文件**不得**经第三方消费级网盘；
 网盘只可用于平台自有素材并显式标注。
 
+## 4.1 存储与解析宿主机实况（2026-10-17 回执核实）
+
+**本服务的链路只依赖 windows-laptop（`100.64.0.10`）**——它的 RustFS（9000，
+本服务凭据可用，桶 `fd-file`+`harbor`）与 Gotenberg（3010）。
+
+- windows-laptop：C 111.7G 用/剩 8.3G（**C 盘紧张，注意**）；D 168.5G 用/
+  剩 174.8G。RustFS 数据 = `D:\rustfs\data`（日志 `D:\rustfs\logs`）；
+  Docker 数据盘在 `D:\DockerDesktopWSL`（占 D 盘）。
+- **windows-admin（`100.64.0.5`）是另一套独立 RustFS 实例**（凭据不互认；
+  11 桶约 30G：harbor 12.5G、laws 12.2G、laws-export 3.2G），**不在本服务
+  链路内**，其容量与本服务无关。该机无 Docker（LTSC 2021 装不上 Docker
+  Desktop），RustFS 为原生进程 + 计划任务登录自启。
+
+**存活要求（6.2 验收对象 = windows-laptop）**：Docker Desktop 勾选开机自启；
+Gotenberg 与 RustFS 容器 restart 策略为 `unless-stopped`。
+
 ## 5. 回滚（任务 7.4）
 
 本服务不触碰任何存量：既有 `fd-text` 桶、`harbor` 桶、四条线的文件处理

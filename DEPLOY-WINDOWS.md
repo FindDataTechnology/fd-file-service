@@ -49,46 +49,63 @@ curl -s http://100.64.0.10:3010/health
 
 ## 6.2 让 RustFS 与 Docker 在无人登录时存活
 
-**背景（实况修正）**：RustFS 跑在 Docker Desktop 的容器里（restart 策略），
-不是"计划任务·登录自启动"。所以关键不是给 RustFS 换启动方式，而是：
+**验收对象 = windows-laptop（100.64.0.10）**。本服务的存储（RustFS 9000）与
+解析（Gotenberg 3010）都在这台；windows-admin（100.64.0.5）是另一套独立
+RustFS（凭据不互认、无 Docker），不在本服务链路内，无需为它做任何事。
 
-1. **Docker Desktop 设为开机自启**（这是 RustFS 与 Gotenberg 共同的前提）：
+**背景（实况）**：RustFS 跑在 Docker Desktop 的容器里（restart 策略）。
+所以关键不是给 RustFS 换启动方式，而是：
+
+1. **Docker Desktop 设为开机自启**（RustFS 与 Gotenberg 共同的前提）：
    Docker Desktop → Settings → General → 勾选
    **"Start Docker Desktop when you sign in to your computer"**。
-2. **确认 RustFS 容器 restart 策略**（在 PowerShell 里跑）：
+2. **确认两个容器的 restart 策略**（在 PowerShell 里跑）：
    ```powershell
    docker inspect rustfs --format "{{.HostConfig.RestartPolicy.Name}}"
+   docker inspect gotenberg --format "{{.HostConfig.RestartPolicy.Name}}"
    ```
-   期望输出 `unless-stopped`。若为空或 `no`，补上：
+   期望双双输出 `unless-stopped`。若为空或 `no`，补上：
    ```powershell
    docker update --restart unless-stopped rustfs
+   docker update --restart unless-stopped gotenberg
    ```
 3. **Windows 服务（NSSM）方式**：若要求"未登录也存活"（Docker Desktop
    默认需用户登录会话），两条路：
    - a) 该机常开且自动登录 → 无需 NSSM；
    - b) 需真正服务化 → 用 NSSM 把 Docker Desktop 的
-     `com.docker.service` 或直接给 RustFS.exe 注册服务（若 RustFS 有原生
-     Windows 二进制，NSSM 注册比走 Docker 更稳）。
+     `com.docker.service` 注册成服务。
 
    推荐先做 a（成本为零），把 b 作为后续优化。
 
 ### 验证（把输出贴回）
 
 ```powershell
-docker inspect rustfs --format "{{.HostConfig.RestartPolicy.Name}}"
+docker inspect rustfs gotenberg --format "{{.Name}} {{.HostConfig.RestartPolicy.Name}}"
 ```
 
-期望：`unless-stopped`。
+期望：两行均为 `unless-stopped`。
 
 重启机器后（可选，更有说服力）：
 ```powershell
-curl.exe -s -o NUL -w "%{http_code}" http://localhost:9000
+curl.exe -s -o NUL -w "rustfs=%{http_code}`n" http://localhost:9000
+curl.exe -s -o NUL -w "gotenberg=%{http_code}`n" http://localhost:3010/health
 ```
-期望：返回 `403`（服务活着，只是未签名请求被拒）——**不是**连接失败。
+期望：`rustfs=403`（活着，未签名请求被拒）、`gotenberg=200`——**都不是**连接失败。
 
 ---
 
 ## 6.3 记录磁盘容量与数据目录
+
+> ✅ **已完成（2026-10-17 回执）**，数字见下（已落 INFRA-NOTES.md 与
+> deploy/README.md §4.1）：
+> - windows-laptop：C 111.7G 用 / **剩 8.3G（C 盘紧张）**、D 168.5G 用 /
+>   剩 174.8G；数据 `D:\rustfs\data`（bind），日志 `D:\rustfs\logs`；
+>   Docker 数据盘 `D:\DockerDesktopWSL`（占 D 盘）。
+> - windows-admin：C 79.9G 用 / 剩 12.5G、D 500G 用 / 剩 51.7G；
+>   数据 `D:\rustfs\data`（11 桶约 30G）。该机无 Docker（LTSC 2021），
+>   RustFS 为原生进程 + 计划任务登录自启。
+
+原始步骤保留备查：
 
 ### 步骤（把输出贴回）
 
@@ -106,18 +123,12 @@ docker inspect rustfs --format "{{json .Mounts}}"
 
 ---
 
-## 执行顺序与回报
+## 状态（2026-10-17）
 
-| 步骤 | 命令要点 | 回报内容 |
-|---|---|---|
-| 1 | `docker run ... -p 3010:3000 gotenberg/gotenberg:8` | `docker ps` 行 + `curl localhost:3010/health` 输出 |
-| 2 | Docker Desktop 自启 + `docker inspect rustfs` 策略 | 策略字符串 + 重启后 9000 端口探测码 |
-| 3 | 磁盘与挂载 | 两个输出原样贴回 |
+- **6.1 ✅ 完成**：Gotenberg 部署于 3010；云侧复核健康 + 真 .docx 活体 12/12。
+- **6.3 ✅ 完成**：两机容量与数据目录已回执并入档（见上）。
+- **6.2 差最后一步**：Docker Desktop 开机自启勾选 + 两容器 restart 策略回执
+  （只关 windows-laptop；windows-admin 不在本服务链路内）。
 
-我这边并行做的（无需你操作）：
-- 从云侧验证 `100.64.0.10:3010` 的 tailnet 可达性；
-- 验证 office 文件（.docx）走完整链：上传 → 事件 → worker → Gotenberg 转换
-  → 文本抽取，并把结果写进验收报告。
-
-完成后任务 6.1-6.3 勾掉，`FILE_GOTENBERG_URL` 在云侧部署（任务 7.1）时按
-3010 注入。
+`FILE_GOTENBERG_URL` 已按 3010 注入生产（cheap-2 栈，2026-10-17 上线，
+线上全链自检 7/7）。
