@@ -64,6 +64,16 @@ def get_db():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    # 建桶（幂等）：spec 承诺「换存储只改端点与凭据」——若启动不建桶，
+    # 换到新端点后第一次上传会以存储侧 404 爆掉，而不是自愈。
+    # 失败只告警不崩：服务面（列表/配额/取用签名）不依赖桶存在，
+    # 让健康检查如实反映（首次上传会失败并留痕，而不是整栈起不来）。
+    try:
+        storage = get_storage()
+        created = storage.ensure_bucket()
+        print(f"[startup] bucket {storage.bucket}: {'created' if created else 'exists'}", flush=True)
+    except Exception as exc:  # 存储暂不可达不阻塞起服（worker 另有自检）
+        print(f"[startup] ensure_bucket failed: {exc!r}", flush=True)
     yield
 
 
