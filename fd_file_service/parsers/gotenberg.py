@@ -22,8 +22,10 @@ from dataclasses import dataclass
 
 import httpx
 
-#: 默认端点：windows-laptop 的 tailnet 地址 + Gotenberg 默认端口 3000。
-DEFAULT_URL = "http://100.64.0.10:3000"
+#: 兜底默认端点（Gotenberg 自有默认端口 3000）。**生产由 ``FILE_GOTENBERG_URL``
+#: 指向实际部署地址**——部署机的 3000 被其它在用应用占用，Gotenberg 部署在
+#: 3010（见 DEPLOY-WINDOWS.md / deploy/env.example）。
+DEFAULT_URL = "http://100.64.0.10:3010"
 
 ENV_URL = "FILE_GOTENBERG_URL"
 ENV_TIMEOUT = "FILE_GOTENBERG_TIMEOUT_SECONDS"
@@ -62,7 +64,7 @@ class GotenbergError(RuntimeError):
 class Client:
     """Gotenberg 薄客户端。
 
-    :param base_url: 根 URL（如 ``http://100.64.0.10:3000``），尾随斜杠无害。
+    :param base_url: 根 URL（如 ``http://100.64.0.10:3010``），尾随斜杠无害。
     :param timeout: 单次请求超时（秒）。LibreOffice 冷启动偏慢，默认 120s。
 
     为什么显式建 ``trust_env=False`` 的客户端、而不是模块级 ``httpx.get/post``：

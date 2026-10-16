@@ -3,10 +3,10 @@
 在 `windows-laptop`（tailnet `100.64.0.10`）上执行。每一步都给验证方法——
 执行后把输出贴回会话，我这边交叉核对。
 
-> **重要前置发现（2026-10-16 实测）**：该机 `3000` 端口**已被占用**，且不是
-> Gotenberg——直连返回 `403 Forbidden`（响应头是某 web 应用的 CSP 头）。
-> 所以**不能**用 Gotenberg 默认端口 3000，否则两个服务打架或静默命中错误服务。
-> 下面统一用 **`3010`** 端口（`FILE_GOTENBERG_URL` 相应改）。
+> **端口规划（2026-10-17 复核）**：该机 `9000` = **RustFS**（文件的存储面，
+> 一切照旧不动）；`3000` = 其它在用的应用（**不动它**，Gotenberg 不用默认
+> 端口）；Gotenberg 定在 **`3010`**（已实测空闲）。若 3010 日后被占，换任何
+> 空闲端口并把 `FILE_GOTENBERG_URL` 对应改掉告知我。
 
 ---
 
@@ -21,7 +21,8 @@ docker run -d --name gotenberg --restart unless-stopped -p 3010:3000 gotenberg/g
 ```
 
 说明：
-- `3010:3000` = 宿主 3010 → 容器内 3000（容器内固定 3000，不改镜像）。
+- `3010:3000` = 宿主 3010 → 容器内 3000（**容器内固定 3000，不改镜像**；
+  冒号左边 3010 是宿主端口，避开 3000 上那个在用的应用）。
 - `--restart unless-stopped` = Docker Desktop 运行期间自动重启；机器重启后
   依赖 Docker Desktop 自启（见 6.2 的说明）。
 - 首次运行会拉镜像（约 500MB），稍等。
@@ -39,14 +40,10 @@ curl.exe -s http://localhost:3010/health
    `OK` 类文案，总之非空、非错误）。
 
 我这边会从云侧验证 tailnet 可达：
+
 ```bash
 curl -s http://100.64.0.10:3010/health
 ```
-
-### 若 3010 也被占
-
-换个空闲端口（如 3011），把下面 `FILE_GOTENBERG_URL` 对应改掉并告知我。
-查占用：`netstat -ano | findstr :3010`
 
 ---
 
@@ -123,4 +120,4 @@ docker inspect rustfs --format "{{json .Mounts}}"
   → 文本抽取，并把结果写进验收报告。
 
 完成后任务 6.1-6.3 勾掉，`FILE_GOTENBERG_URL` 在云侧部署（任务 7.1）时按
-实际端口注入。
+3010 注入。
