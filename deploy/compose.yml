@@ -1,0 +1,47 @@
+# fd-file-service 节点侧部署栈（任务 7.1）。操作序列见同目录 README.md。
+#
+# 前置：deploy/.env（从 env.example 生成；compose 同时用它做变量插值与容器
+# env_file）。离线校验（不 build 不 pull）：docker compose config
+#
+# 两个服务同一镜像、不同入口：
+#   file-api     HTTP 面（上传凭据/确认/列表/取用/配额/维护）
+#   parse-worker 事件消费者（文本抽取；常驻轮询，可独立重启/扩容）
+# 共享 /data 卷上的同一个 SQLite（WAL 已开，双进程共写安全）。
+
+name: fd-file-service
+
+x-common: &common
+  image: ${FD_FILE_IMAGE}
+  env_file: .env
+  restart: unless-stopped
+  volumes:
+    - filedata:/data
+
+services:
+  file-api:
+    <<: *common
+    # 内存上限：服务不扛字节（预签名直传），只需处理元数据与签名
+    mem_limit: 256m
+    ports:
+      # 默认仅绑回环：由节点反代终结 TLS 后转发（nginx/caddy）。
+      # 要换节点端口改 FD_FILE_PORT（容器内固定 8731）。
+      - "${FD_FILE_BIND:-127.0.0.1}:${FD_FILE_PORT:-8731}:8731"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8731/health', timeout=3).status==200 else 1)\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  parse-worker:
+    <<: *common
+    command: ["python", "scripts/parse_worker.py", "--interval", "5.0"]
+    # 解析吃内存（大 PDF）：给宽一点，且与 API 隔离——worker 被杀不影响上传
+    mem_limit: 768m
+    depends_on:
+      file-api:
+        condition: service_healthy
+    # 常驻轮询：空闲退避由 --interval 控制；重启后从队列继续（事件已持久化）
+
+volumes:
+  filedata:

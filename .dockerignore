@@ -1,0 +1,15 @@
+# 构建上下文排除：凭据与本地状态绝不上构建机。
+# 快照通道（fd-build-snapshot 干净 clone）本就不含这些，此处是第二道闸。
+.env
+.env.*
+!.env.example
+*.db
+*.db-shm
+*.db-wal
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.git/
+deploy/.env
