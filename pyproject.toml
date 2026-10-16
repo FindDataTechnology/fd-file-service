@@ -1,0 +1,43 @@
+[project]
+name = "fd-file-service"
+version = "0.1.0"
+description = "统一文件服务：owner 域隔离 + 预签名直传 + 配额 / 去重 / 软删除"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "pydantic>=2.7",
+    "pydantic-settings>=2.3",
+    "sqlalchemy>=2.0",
+    # S3 兼容存储客户端（RustFS / MinIO / 专业对象存储同接口，见 design D3/D11）
+    "boto3>=1.34",
+    "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.2",
+    "httpx>=0.27",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["fd_file_service"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+# BLE001/S110/S112（盲捕获）在本仓是**留痕与兜底路径的设计**，非疏忽：
+#   - worker 循环：任何漏出的异常都必须 nack，绝不让事件悬在 claimed；
+#   - 留痕写入失败不得掩盖原解析结果（parse._record）；
+#   - 订阅者扇出失败不得拖垮发布路径（events.EventBus.publish）。
+# B008（Depends/Query 作默认值）是 FastAPI 依赖注入的固定写法。
+extend-ignore = ["BLE001", "B008", "S110", "S112"]
+
+
+[tool.pytest.ini_options]
