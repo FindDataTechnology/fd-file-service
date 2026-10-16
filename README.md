@@ -18,14 +18,26 @@ uvicorn fd_file_service.app:app --host 127.0.0.1 --port 8731
 curl http://127.0.0.1:8731/health
 ```
 
-## 验收（真实 RustFS，一键复跑）
+## 验收（三套，真实 RustFS，一键复跑）
 
 ```bash
-python3 scripts/acceptance.py
+python3 scripts/acceptance.py          # 37 项：服务面（上传/隔离/配额/去重/恢复/过滤）
+python3 scripts/e2e_fullchain.py       # 22 项：全链（事件→worker→文本抽取可检索）
+python3 scripts/stub_gotenberg_test.py # 9 项：Office 分支（本地桩替代真 Gotenberg）
 ```
 
-建 `fd-file-test-*` 临时桶 → 起服务于随机高端口 → 跑 32 项 → 删空并删桶。
-**不动 `harbor` 桶。**
+均建 `fd-file-test-*` 临时桶 → 起服务于随机高端口 → 跑断言 → 删空并删桶。
+**不动 `harbor` 桶。** 真 Gotenberg 容器部署后（见 `DEPLOY-WINDOWS.md`），
+第三套的桩验部分可换成对真容器复跑。
+
+解析 worker（常驻或一次）：
+
+```bash
+python3 scripts/parse_worker.py --once        # 处理完当前 backlog 即退出
+python3 scripts/parse_worker.py               # 常驻轮询
+python3 scripts/parse_worker.py --peek        # 只看队列概览，不改状态
+python3 scripts/parse_worker.py --health      # 顺带探 Gotenberg 健康
+```
 
 ## 上传流程（字节不经服务）
 
