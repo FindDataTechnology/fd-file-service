@@ -1,16 +1,24 @@
 # fd-file-service 节点侧部署（任务 7.1）
 
+**生产落点（2026-10-17 起）：cheap-2（103.236.94.58），目录
+`/opt/fd-file-service/`**。选它而非 cheap-1：cheap-1 磁盘 92%/剩 2.5G，
+cheap-2 剩 12G 且 tailnet 到 RustFS（9000）与 Gotenberg（3010）实测通、
+延迟 <0.2s。`sshpass -p '<cheap-2 口令>' ssh root@103.236.94.58`。
+
 栈构成：`file-api`（HTTP 面，256m）+ `parse-worker`（事件消费与文本抽取，768m），
 **同一镜像、不同入口**，共享 `/data` 卷上的同一个 SQLite（WAL 已开，双进程共写安全）。
 
 镜像不在节点上构建（本机/节点禁 docker build）：经私有构建池出片：
 
 ```sh
-fd-build-snapshot ~/finddata/fd-file-service -R <owner>/build-pool \
+fd-build-snapshot ~/finddata/fd-file-service -R testaction001/build-pool \
   --namespace yizuo --image fd-file-service
 ```
 
-出片后拿 registry 引用填进 `.env` 的 `FD_FILE_IMAGE`。
+出片后拿 registry 引用填进 `.env` 的 `FD_FILE_IMAGE`（`ccr.ccs.tencentyun.com/yizuo/fd-file-service:sha-<快照短 sha>`）。
+**注意**：新 tag 需等 cheap-3 的 relay cron 回灌 ccr（≤5 分钟；日志
+`/var/log/tcr-relay.log` 看 `yizuo/fd-file-service:sha-<tag>` 行）——回灌前
+`docker compose up -d` 会报 image not found。
 
 ## 0. 目录布局与前置
 
@@ -41,7 +49,7 @@ curl -fsS http://127.0.0.1:8731/config    # 生效配置自检（不含凭据）
 
 `/config` 会回显配额档位与存储端点等**非凭据**配置，用来确认环境注入生效。
 
-## 2. 首次连通性自检（三条，缺一不可）
+## 2. 首次连通性自检（四条，缺一不可）
 
 ```sh
 # a. RustFS 连通（经 tailnet）：应看到桶列表，含 fd-file 与 harbor
@@ -55,7 +63,14 @@ curl -s -X POST http://127.0.0.1:8731/files/upload-url -H 'content-type: applica
 
 # c. worker 能看到队列与 Gotenberg 状态
 docker compose exec parse-worker python scripts/parse_worker.py --peek --health
+
+# d. 线上全链自检（生产桶真实链路：上传→事件→worker→真转换→抽取→取用→清理）
+#    容器内跑（脚本随镜像携带）；只写 ops:online_selftest 域且自清理，可反复跑
+docker compose exec file-api python scripts/online_selftest.py
 ```
+
+> 首次部署记录（2026-10-17，cheap-2）：a-d 全过；线上全链 7/7（真 .docx 走
+> 真 LibreOffice 转换 chars=25、取用字节一致、purge 回收后生产桶零残留）。
 
 ## 3. 反代（对外形态）
 

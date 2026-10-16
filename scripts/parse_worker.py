@@ -95,17 +95,21 @@ def check_health(client: gb.Client) -> bool:
 
 
 def peek(backend: ev.Backend) -> None:
-    counts = backend.count_by_status() if isinstance(backend, ev.SQLiteBackend) else {}
-    log(f"队列概览: {counts or '(无法统计)'}")
-    if isinstance(backend, ev.SQLiteBackend):
-        for rec in backend.recent(limit=10):
-            payload = rec.to_event()
-            missing = payload.missing_fields()
-            log(
-                f"  #{rec.id} {rec.event_type} file={rec.file_id} owner={rec.owner} "
-                f"status={rec.status} attempts={rec.attempts}"
-                + (f" 缺字段={missing}" if missing else "")
-            )
+    if not isinstance(backend, ev.SQLiteBackend):
+        log("队列概览: （非 SQLite 后端，无持久队列可查）")
+        return
+    counts = backend.count_by_status()
+    # 空队列表非空 dict —— 直接打印 `{}` 容易被当成故障；说清"空"而不是
+    # 让运维对着空花括号猜。（count_by_status 返回 {} 时就是"一条事件都没有"。）
+    log(f"队列概览: {counts if counts else '（空，无任何事件行）'}")
+    for rec in backend.recent(limit=10):
+        payload = rec.to_event()
+        missing = payload.missing_fields()
+        log(
+            f"  #{rec.id} {rec.event_type} file={rec.file_id} owner={rec.owner} "
+            f"status={rec.status} attempts={rec.attempts}"
+            + (f" 缺字段={missing}" if missing else "")
+        )
 
 
 def process_one(backend: ev.Backend, storage, gotenberg: gb.Client | None) -> bool:
