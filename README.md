@@ -1,5 +1,7 @@
 # fd-file-service
 
+> **Part of the [Base line (寻数·壹座)](https://www.finddatatech.cloud/products/base) of [FindData](https://www.finddatatech.cloud)** — file ingest, storage and text extraction: S3-backed object store, conversion via Gotenberg, parsers with a defined failure taxonomy.
+
 统一文件服务：四条产品线（柏讯/壹座/识律/公文）共用的文件底座。
 
 **核心原则：服务不理解业务。** 文件归属由调用方以不透明 `owner` 字符串声明
