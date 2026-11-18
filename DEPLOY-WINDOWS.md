@@ -1,6 +1,6 @@
 # Windows 侧部署清单（fd-file-service 任务 6.1-6.3）
 
-在 `windows-laptop`（tailnet `100.64.0.10`）上执行。每一步都给验证方法——
+在存储主机上执行。每一步都给验证方法——
 执行后把输出贴回会话，我这边交叉核对。
 
 > **端口规划（2026-10-17 复核）**：该机 `9000` = **RustFS**（文件的存储面，
@@ -14,7 +14,7 @@
 
 ### 步骤
 
-在 windows-laptop 上打开 PowerShell（Docker Desktop 需已启动）：
+在 存储主机 上打开 PowerShell（Docker Desktop 需已启动）：
 
 ```powershell
 docker run -d --name gotenberg --restart unless-stopped -p 3010:3000 gotenberg/gotenberg:8
@@ -42,15 +42,15 @@ curl.exe -s http://localhost:3010/health
 我这边会从云侧验证 tailnet 可达：
 
 ```bash
-curl -s http://100.64.0.10:3010/health
+curl -s http://localhost:3010/health
 ```
 
 ---
 
 ## 6.2 让 RustFS 与 Docker 在无人登录时存活
 
-**验收对象 = windows-laptop（100.64.0.10）**。本服务的存储（RustFS 9000）与
-解析（Gotenberg 3010）都在这台；windows-admin（100.64.0.5）是另一套独立
+**验收对象 = 存储主机**。本服务的存储（RustFS 9000）与
+解析（Gotenberg 3010）都在这台；另一台存储主机是独立的另一套
 RustFS（凭据不互认、无 Docker），不在本服务链路内，无需为它做任何事。
 
 **背景（实况）**：RustFS 跑在 Docker Desktop 的容器里（restart 策略）。
@@ -98,10 +98,10 @@ curl.exe -s -o NUL -w "gotenberg=%{http_code}`n" http://localhost:3010/health
 
 > ✅ **已完成（2026-10-17 回执）**，数字见下（已落 INFRA-NOTES.md 与
 > deploy/README.md §4.1）：
-> - windows-laptop：C 111.7G 用 / **剩 8.3G（C 盘紧张）**、D 168.5G 用 /
+> - 存储主机：C 111.7G 用 / **剩 8.3G（C 盘紧张）**、D 168.5G 用 /
 >   剩 174.8G；数据 `D:\rustfs\data`（bind），日志 `D:\rustfs\logs`；
 >   Docker 数据盘 `D:\DockerDesktopWSL`（占 D 盘）。
-> - windows-admin：C 79.9G 用 / 剩 12.5G、D 500G 用 / 剩 51.7G；
+> - 另一台主机：C 79.9G 用 / 剩 12.5G、D 500G 用 / 剩 51.7G；
 >   数据 `D:\rustfs\data`（11 桶约 30G）。该机无 Docker（LTSC 2021），
 >   RustFS 为原生进程 + 计划任务登录自启。
 
@@ -128,7 +128,7 @@ docker inspect rustfs --format "{{json .Mounts}}"
 - **6.1 ✅ 完成**：Gotenberg 部署于 3010；云侧复核健康 + 真 .docx 活体 12/12。
 - **6.3 ✅ 完成**：两机容量与数据目录已回执并入档（见上）。
 - **6.2 差最后一步**：Docker Desktop 开机自启勾选 + 两容器 restart 策略回执
-  （只关 windows-laptop；windows-admin 不在本服务链路内）。
+  （只关 存储主机；另一台主机 不在本服务链路内）。
 
-`FILE_GOTENBERG_URL` 已按 3010 注入生产（cheap-2 栈，2026-10-17 上线，
+`FILE_GOTENBERG_URL` 已按 3010 注入生产（生产栈，2026-10-17 上线，
 线上全链自检 7/7）。

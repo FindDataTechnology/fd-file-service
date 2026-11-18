@@ -89,7 +89,7 @@ def check_health(client: gb.Client) -> bool:
     ok, detail = client.health()
     log(f"Gotenberg {client.base_url} -> {'健康' if ok else '不可达'}: {detail}")
     if not ok:
-        log("提示：Gotenberg 需由用户在 windows-laptop(100.64.0.10) 部署（变更任务 6.1）；")
+        log("提示：Gotenberg 需由用户在 存储主机 部署（变更任务 6.1）；")
         log("      未部署时 Office 文件无法转换，但**原生 PDF 仍可完成文本抽取**。")
     return ok
 

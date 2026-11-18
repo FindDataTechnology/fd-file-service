@@ -1,9 +1,7 @@
 # fd-file-service 节点侧部署（任务 7.1）
 
-**生产落点（2026-10-17 起）：cheap-2（103.236.94.58），目录
-`/opt/fd-file-service/`**。选它而非 cheap-1：cheap-1 磁盘 92%/剩 2.5G，
-cheap-2 剩 12G 且 tailnet 到 RustFS（9000）与 Gotenberg（3010）实测通、
-延迟 <0.2s。`sshpass -p '<cheap-2 口令>' ssh root@103.236.94.58`。
+**生产落点：一台受限的 worker 节点，目录 `/opt/fd-file-service/`。**
+具体主机名、地址与访问方式内网留存，不随仓公开。
 
 栈构成：`file-api`（HTTP 面，256m）+ `parse-worker`（事件消费与文本抽取，768m），
 **同一镜像、不同入口**，共享 `/data` 卷上的同一个 SQLite（WAL 已开，双进程共写安全）。
@@ -16,7 +14,7 @@ fd-build-snapshot ~/finddata/fd-file-service -R testaction001/build-pool \
 ```
 
 出片后拿 registry 引用填进 `.env` 的 `FD_FILE_IMAGE`（`ccr.ccs.tencentyun.com/yizuo/fd-file-service:sha-<快照短 sha>`）。
-**注意**：新 tag 需等 cheap-3 的 relay cron 回灌 ccr（≤5 分钟；日志
+**注意**：新 tag 需等 中继机的 relay cron 回灌 ccr（≤5 分钟；日志
 `/var/log/tcr-relay.log` 看 `yizuo/fd-file-service:sha-<tag>` 行）——回灌前
 `docker compose up -d` 会报 image not found。
 
@@ -69,7 +67,7 @@ docker compose exec parse-worker python scripts/parse_worker.py --peek --health
 docker compose exec file-api python scripts/online_selftest.py
 ```
 
-> 首次部署记录（2026-10-17，cheap-2）：a-d 全过；线上全链 7/7（真 .docx 走
+> 首次部署记录（2026-10-17）：a-d 全过；线上全链 7/7（真 .docx 走
 > 真 LibreOffice 转换 chars=25、取用字节一致、purge 回收后生产桶零残留）。
 
 ## 3. 反代（对外形态）
@@ -79,7 +77,7 @@ docker compose exec file-api python scripts/online_selftest.py
 - 对外域名/入口由入口侧决定（与四条线的网关集成时再定）；
 - **上传接口必须能直达**：客户端拿到预签名 URL 后直传 RustFS（不经本服务），
   所以 `FILE_S3_ENDPOINT` 的地址必须对**调用方网络**可达（tailnet 内机器用
-  `100.64.0.10:9000`）；跨公网调用方需在 RustFS 前有公网入口。
+  `<object-store-host>:9000`）；跨公网调用方需在 RustFS 前有公网入口。
 
 ## 4. 运维例行
 
@@ -100,18 +98,18 @@ docker run --rm -v fd-file-service_filedata:/d -v $(pwd):/b alpine \
 
 ## 4.1 存储与解析宿主机实况（2026-10-17 回执核实）
 
-**本服务的链路只依赖 windows-laptop（`100.64.0.10`）**——它的 RustFS（9000，
+**本服务的链路只依赖一台存储主机**——它的 RustFS（9000，
 本服务凭据可用，桶 `fd-file`+`harbor`）与 Gotenberg（3010）。
 
-- windows-laptop：C 111.7G 用/剩 8.3G（**C 盘紧张，注意**）；D 168.5G 用/
+- 存储主机：C 111.7G 用/剩 8.3G（**C 盘紧张，注意**）；D 168.5G 用/
   剩 174.8G。RustFS 数据 = `D:\rustfs\data`（日志 `D:\rustfs\logs`）；
   Docker 数据盘在 `D:\DockerDesktopWSL`（占 D 盘）。
-- **windows-admin（`100.64.0.5`）是另一套独立 RustFS 实例**（凭据不互认；
+- **另一台存储主机是独立的 RustFS 实例**（凭据不互认；
   11 桶约 30G：harbor 12.5G、laws 12.2G、laws-export 3.2G），**不在本服务
   链路内**，其容量与本服务无关。该机无 Docker（LTSC 2021 装不上 Docker
   Desktop），RustFS 为原生进程 + 计划任务登录自启。
 
-**存活要求（6.2 验收对象 = windows-laptop）**：Docker Desktop 勾选开机自启；
+**存活要求（6.2 验收对象 = 存储主机）**：Docker Desktop 勾选开机自启；
 Gotenberg 与 RustFS 容器 restart 策略为 `unless-stopped`。
 
 ## 5. 回滚（任务 7.4）

@@ -1,7 +1,7 @@
 """Gotenberg HTTP 客户端（v1：只做 Office → PDF 这一段）。
 
 端点 ``FILE_GOTENBERG_URL`` 指向跑着 ``gotenberg`` 容器的机器；
-**部署动作由用户在 ``windows-laptop``（100.64.0.10）执行**（任务 6.1），
+**部署动作由用户在 ``存储主机``（存储主机）执行**（任务 6.1），
 本模块只负责调用与健康检查。
 
 multipart 表单字段名（核对 upstream ``pkg/modules/libreoffice/routes.go``）：
@@ -22,10 +22,12 @@ from dataclasses import dataclass
 
 import httpx
 
-#: 兜底默认端点（Gotenberg 自有默认端口 3000）。**生产由 ``FILE_GOTENBERG_URL``
-#: 指向实际部署地址**——部署机的 3000 被其它在用应用占用，Gotenberg 部署在
-#: 3010（见 DEPLOY-WINDOWS.md / deploy/env.example）。
-DEFAULT_URL = "http://100.64.0.10:3010"
+#: 兜底默认端点：``localhost`` 上的 Gotenberg 默认端口。
+#:
+#: 之前这里写死了一台具体主机的内网地址。那既是拓扑泄漏（哪个网段、哪台机器跑
+#: 转换服务），也让「默认值」对任何人都没用——本机没跑 Gotenberg 时它会直接超时。
+#: 生产走 ``FILE_GOTENBERG_URL``，默认值只服务「同机起了 sidecar」这一种情况。
+DEFAULT_URL = "http://localhost:3010"
 
 ENV_URL = "FILE_GOTENBERG_URL"
 ENV_TIMEOUT = "FILE_GOTENBERG_TIMEOUT_SECONDS"
@@ -64,7 +66,7 @@ class GotenbergError(RuntimeError):
 class Client:
     """Gotenberg 薄客户端。
 
-    :param base_url: 根 URL（如 ``http://100.64.0.10:3010``），尾随斜杠无害。
+    :param base_url: 根 URL（如 ``http://localhost:3010``），尾随斜杠无害。
     :param timeout: 单次请求超时（秒）。LibreOffice 冷启动偏慢，默认 120s。
 
     为什么显式建 ``trust_env=False`` 的客户端、而不是模块级 ``httpx.get/post``：

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Office 分支验收（Gotenberg 桩）：`python3 scripts/stub_gotenberg_test.py`
 
-为什么用桩：Gotenberg 真容器部署在 windows-laptop（任务 6.1，用户执行），
+为什么用桩：Gotenberg 真容器部署在 存储主机（任务 6.1，用户执行），
 部署前 Office 分支（.docx → Gotenberg → PDF → 文本）从未被任何验收跑过。
 本脚本用**本地桩**验证本服务侧的那一半契约——请求形态是否正确：
 
